@@ -48,11 +48,12 @@ export async function sendEmail({ to, subject, html }: SendEmailParams) {
     console.log("[EMAIL] Verifying SMTP connection...");
     await transporter.verify();
     console.log("[EMAIL] ✅ SMTP connection verified successfully.");
-  } catch (verifyError: any) {
+  } catch (verifyError: unknown) {
+    const errObj = verifyError as { message?: string };
     console.error("[EMAIL] ❌ SMTP connection FAILED. Check your credentials and host.");
-    console.error("[EMAIL] Verify error:", verifyError?.message ?? verifyError);
+    console.error("[EMAIL] Verify error:", errObj?.message ?? verifyError);
     // Throw a descriptive error so we know exactly what failed
-    throw new Error(`SMTP connection failed: ${verifyError?.message}`);
+    throw new Error(`SMTP connection failed: ${errObj?.message}`);
   }
 
   // --- Send the actual email ---
@@ -61,8 +62,9 @@ export async function sendEmail({ to, subject, html }: SendEmailParams) {
     const info = await transporter.sendMail({ from, to, subject, html });
     console.log(`[EMAIL] ✅ Email sent! Message ID: ${info.messageId}`);
     return { success: true, messageId: info.messageId };
-  } catch (sendError: any) {
-    console.error("[EMAIL] ❌ sendMail failed:", sendError?.message ?? sendError);
-    throw new Error(`Failed to send email: ${sendError?.message}`);
+  } catch (sendError: unknown) {
+    const errObj = sendError as { message?: string };
+    console.error("[EMAIL] ❌ sendMail failed:", errObj?.message ?? sendError);
+    throw new Error(`Failed to send email: ${errObj?.message}`);
   }
 }

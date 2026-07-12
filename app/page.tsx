@@ -1,8 +1,14 @@
 import Link from "next/link";
-import { buttonVariants } from "@/components/ui/button";
 import { Zap } from "lucide-react";
+import { headers } from "next/headers";
+import { auth } from "@/lib/auth";
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+  const isAuthenticated = !!session?.user;
+
   return (
     <div className="min-h-screen bg-background text-foreground selection:bg-primary/30 flex flex-col font-sans">
       {/* Navigation */}
@@ -15,12 +21,20 @@ export default function LandingPage() {
             <span className="font-semibold text-lg tracking-tight">TransitOps</span>
           </div>
           <div className="flex items-center gap-4">
-            <Link href="/login" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-              Sign In
-            </Link>
-            <Link href="/signup" className={buttonVariants({ className: "bg-foreground text-background hover:bg-foreground/90 rounded-full px-6" })}>
-              Get Started
-            </Link>
+            {isAuthenticated ? (
+              <Link href="/profile" className="bg-foreground text-background hover:bg-foreground/90 rounded-full px-6 py-2 text-sm font-medium transition-colors">
+                Profile
+              </Link>
+            ) : (
+              <>
+                <Link href="/login" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+                  Sign In
+                </Link>
+                <Link href="/login" className="bg-foreground text-background hover:bg-foreground/90 rounded-full px-6 py-2 text-sm font-medium transition-colors">
+                  Get Started
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </nav>
@@ -50,12 +64,20 @@ export default function LandingPage() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link href="/signup" className={buttonVariants({ size: "lg", className: "h-14 px-8 text-base rounded-full bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg shadow-primary/20 transition-all hover:scale-105" })}>
-              Start Your Free Trial
-            </Link>
-            <Link href="/login" className={buttonVariants({ variant: "outline", size: "lg", className: "h-14 px-8 text-base rounded-full bg-muted border-border text-foreground hover:bg-muted/80 backdrop-blur-md transition-all" })}>
-              Book a Demo
-            </Link>
+            {isAuthenticated ? (
+              <Link href="/dashboard" className="inline-flex items-center justify-center font-medium h-14 px-8 text-base rounded-full bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg shadow-primary/20 transition-all hover:scale-105">
+                Go to Dashboard
+              </Link>
+            ) : (
+              <>
+                <Link href="/login" className="inline-flex items-center justify-center font-medium h-14 px-8 text-base rounded-full bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg shadow-primary/20 transition-all hover:scale-105">
+                  Start Your Free Trial
+                </Link>
+                <Link href="/login" className="inline-flex items-center justify-center font-medium h-14 px-8 text-base rounded-full bg-muted border border-border text-foreground hover:bg-muted/80 backdrop-blur-md transition-all">
+                  Book a Demo
+                </Link>
+              </>
+            )}
           </div>
         </div>
 

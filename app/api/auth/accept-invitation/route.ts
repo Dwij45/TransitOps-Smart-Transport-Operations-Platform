@@ -65,12 +65,13 @@ export async function POST(req: Request) {
         message: "Invitation accepted. You can now sign in with your email and password.",
       },
     });
-  } catch (err: any) {
-    const code: string = err?.code ?? "internal";
+  } catch (err: unknown) {
+    const errorObj = err as { code?: string; message?: string };
+    const code: string = errorObj?.code ?? "internal";
 
     if (code === "validation_failed") {
       return NextResponse.json(
-        { ok: false, error: err.message ?? "Invitation is invalid or expired" },
+        { ok: false, error: errorObj.message ?? "Invitation is invalid or expired" },
         { status: 422 },
       );
     }
@@ -87,7 +88,7 @@ export async function POST(req: Request) {
       );
     }
 
-    console.error("[accept-invitation] Unexpected error:", err?.message ?? err);
+    console.error("[accept-invitation] Unexpected error:", errorObj?.message ?? err);
     return NextResponse.json(
       { ok: false, error: "An unexpected error occurred. Please try again." },
       { status: 500 },

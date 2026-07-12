@@ -4,7 +4,6 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { user } from "@/db/schema/auth";
-import { auditEvent } from "@/db/schema/platform";
 import { eq } from "drizzle-orm";
 import { changeStaffRole, revokeStaffSessions, unlockStaffUser } from "@/lib/services/staff-management";
 import { userRoleValues } from "@/db/schema/auth";
@@ -93,9 +92,10 @@ export async function POST(req: Request) {
       const result = await revokeStaffSessions({ actorUserId: actor.id, targetUserId });
       return NextResponse.json({ ok: true, data: result });
     }
-  } catch (err: any) {
-    const code = err?.code ?? "internal";
+  } catch (err: unknown) {
+    const errorObj = err as { code?: string; message?: string };
+    const code = errorObj?.code ?? "internal";
     const status = code === "not_found" ? 404 : code === "forbidden" ? 403 : code === "conflict" ? 409 : 500;
-    return NextResponse.json({ error: err?.message ?? "Internal error" }, { status });
+    return NextResponse.json({ error: errorObj?.message ?? "Internal error" }, { status });
   }
 }

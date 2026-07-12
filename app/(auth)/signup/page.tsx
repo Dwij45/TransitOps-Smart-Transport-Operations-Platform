@@ -1,10 +1,42 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Globe } from "lucide-react";
+import { authClient } from "@/lib/auth-client";
 
 export default function SignupPage() {
+  const router = useRouter();
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    
+    const { error: signUpError } = await authClient.signUp.email({
+      name: `${firstName} ${lastName}`.trim(),
+      email,
+      password,
+    });
+    
+    if (signUpError) {
+      setError(signUpError.message || "Failed to sign up");
+      setLoading(false);
+    } else {
+      router.push("/");
+    }
+  };
+
   return (
     <>
       <div className="flex flex-col space-y-2 text-center mb-8">
@@ -15,14 +47,17 @@ export default function SignupPage() {
       </div>
       
       <div className="grid gap-6">
-        <form>
+        <form onSubmit={handleSubmit}>
           <div className="grid gap-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="first-name" className="text-muted-foreground">First name</Label>
                 <Input 
                   id="first-name" 
-                  placeholder="John" 
+                  placeholder="John"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  required
                   className="bg-muted border-border text-foreground placeholder:text-muted-foreground h-11" 
                 />
               </div>
@@ -30,7 +65,10 @@ export default function SignupPage() {
                 <Label htmlFor="last-name" className="text-muted-foreground">Last name</Label>
                 <Input 
                   id="last-name" 
-                  placeholder="Doe" 
+                  placeholder="Doe"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  required
                   className="bg-muted border-border text-foreground placeholder:text-muted-foreground h-11" 
                 />
               </div>
@@ -41,6 +79,9 @@ export default function SignupPage() {
                 id="email" 
                 placeholder="name@example.com" 
                 type="email" 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
                 autoCapitalize="none" 
                 autoComplete="email" 
                 autoCorrect="off" 
@@ -51,12 +92,22 @@ export default function SignupPage() {
               <Label htmlFor="password" className="text-muted-foreground">Password</Label>
               <Input 
                 id="password" 
-                type="password" 
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
                 className="bg-muted border-border text-foreground h-11"
               />
             </div>
-            <Button className="w-full h-11 mt-2 bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-all hover:shadow-lg hover:shadow-primary/20">
-              Create Account
+            
+            {error && (
+              <div className="text-sm text-red-500 font-medium">
+                {error}
+              </div>
+            )}
+            
+            <Button disabled={loading} type="submit" className="w-full h-11 mt-2 bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-all hover:shadow-lg hover:shadow-primary/20">
+              {loading ? "Creating account..." : "Create Account"}
             </Button>
           </div>
         </form>
@@ -72,7 +123,7 @@ export default function SignupPage() {
           </div>
         </div>
         
-        <Button variant="outline" className="w-full h-11 bg-transparent border-border text-foreground hover:bg-accent hover:text-accent-foreground transition-colors">
+        <Button variant="outline" type="button" onClick={() => authClient.signIn.social({ provider: "google" })} className="w-full h-11 bg-transparent border-border text-foreground hover:bg-accent hover:text-accent-foreground transition-colors">
           <Globe className="mr-2 h-4 w-4" />
           Google
         </Button>

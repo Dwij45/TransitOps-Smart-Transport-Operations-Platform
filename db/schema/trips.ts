@@ -5,6 +5,7 @@ import {
   index,
   numeric,
   pgEnum,
+  pgSequence,
   pgTable,
   text,
   timestamp,
@@ -21,6 +22,10 @@ export const tripStatus = pgEnum("trip_status", [
   "completed",
   "cancelled",
 ]);
+
+export const tripCodeSequence = pgSequence("trip_code_sequence", {
+  startWith: 1,
+});
 
 export const trip = pgTable(
   "trip",

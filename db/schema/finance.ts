@@ -5,6 +5,7 @@ import {
   index,
   numeric,
   pgEnum,
+  pgSequence,
   pgTable,
   text,
   timestamp,
@@ -34,6 +35,11 @@ export const expenseKind = pgEnum("expense_kind", [
   "toll",
   "miscellaneous",
 ]);
+
+export const maintenanceOrderCodeSequence = pgSequence(
+  "maintenance_order_code_sequence",
+  { startWith: 1 },
+);
 
 export const maintenanceServiceType = pgTable(
   "maintenance_service_type",

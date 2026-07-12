@@ -20,6 +20,8 @@ import {
 import {
   inviteStaffUser,
   unlockStaffUser,
+  changeStaffRole,
+  revokeStaffSessions,
 } from "@/lib/services/staff-management";
 import {
   cancelTrip,
@@ -167,7 +169,12 @@ const inviteStaffSchema = z.object({
   role: z.enum(userRoleValues),
 });
 
-const unlockStaffSchema = z.object({
+const changeRoleSchema = z.object({
+  targetUserId: requiredText("Staff user", 255),
+  newRole: z.enum(userRoleValues),
+});
+
+const revokeSessionsSchema = z.object({
   targetUserId: requiredText("Staff user", 255),
 });
 
@@ -338,6 +345,37 @@ export async function unlockStaffUserAction(formData: FormData) {
       const user = await unlockStaffUser(actor.userId, input.targetUserId);
 
       return { userId: user.id };
+    },
+  );
+}
+
+export async function changeStaffRoleAction(formData: FormData) {
+  return executeProtectedFormOperation(
+    formData,
+    changeRoleSchema,
+    async (actor, input) => {
+      const result = await changeStaffRole({
+        actorUserId: actor.userId,
+        targetUserId: input.targetUserId,
+        newRole: input.newRole,
+      });
+
+      return { userId: result.id, newRole: result.role, changed: result.changed };
+    },
+  );
+}
+
+export async function revokeStaffSessionsAction(formData: FormData) {
+  return executeProtectedFormOperation(
+    formData,
+    revokeSessionsSchema,
+    async (actor, input) => {
+      const result = await revokeStaffSessions({
+        actorUserId: actor.userId,
+        targetUserId: input.targetUserId,
+      });
+
+      return { userId: result.userId, revokedCount: result.revokedCount };
     },
   );
 }

@@ -8,6 +8,7 @@ import { and, eq, gt, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   account,
+  session,
   user,
   userRoleValues,
   verification,
@@ -267,5 +268,107 @@ export async function unlockStaffUser(
     });
 
     return updated;
+  });
+}
+
+// ─── Change Role ──────────────────────────────────────────────────────────────
+
+export interface ChangeStaffRoleInput {
+  actorUserId: string;
+  targetUserId: string;
+  newRole: UserRole;
+}
+
+export async function changeStaffRole(input: ChangeStaffRoleInput) {
+  await assertUserManager(input.actorUserId);
+
+  // Edge case: admin cannot change their own role to prevent self-lockout
+  if (input.actorUserId === input.targetUserId) {
+    throw new DomainError("forbidden", "You cannot change your own role");
+  }
+
+  // Edge case: validate the new role is one of the allowed values
+  if (!userRoleValues.includes(input.newRole)) {
+    throw new DomainError("validation_failed", "Invalid role specified");
+  }
+
+  return db.transaction(async (tx) => {
+    const [target] = await tx
+      .select({ id: user.id, role: user.role, email: user.email })
+      .from(user)
+      .where(eq(user.id, input.targetUserId))
+      .for("update")
+      .limit(1);
+
+    if (!target) {
+      throw new DomainError("not_found", "Staff user not found");
+    }
+
+    // Edge case: no-op if role is already the same
+    if (target.role === input.newRole) {
+      return { id: target.id, role: target.role, changed: false };
+    }
+
+    const [updated] = await tx
+      .update(user)
+      .set({ role: input.newRole })
+      .where(eq(user.id, input.targetUserId))
+      .returning({ id: user.id, role: user.role });
+
+    await tx.insert(auditEvent).values({
+      ...auditMetadata(),
+      actorUserId: input.actorUserId,
+      action: "user.role_changed",
+      entityType: "user",
+      entityId: input.targetUserId,
+      before: { role: target.role },
+      after: { role: input.newRole },
+    });
+
+    return { id: updated.id, role: updated.role, changed: true };
+  });
+}
+
+// ─── Revoke Sessions ─────────────────────────────────────────────────────────
+
+export interface RevokeStaffSessionsInput {
+  actorUserId: string;
+  targetUserId: string;
+}
+
+export async function revokeStaffSessions(input: RevokeStaffSessionsInput) {
+  await assertUserManager(input.actorUserId);
+
+  return db.transaction(async (tx) => {
+    const [target] = await tx
+      .select({ id: user.id })
+      .from(user)
+      .where(eq(user.id, input.targetUserId))
+      .limit(1);
+
+    if (!target) {
+      throw new DomainError("not_found", "Staff user not found");
+    }
+
+    // Count sessions before deletion for audit record
+    const existingSessions = await tx
+      .select({ id: session.id })
+      .from(session)
+      .where(eq(session.userId, input.targetUserId));
+
+    // Delete all active sessions for the target user
+    await tx.delete(session).where(eq(session.userId, input.targetUserId));
+
+    await tx.insert(auditEvent).values({
+      ...auditMetadata(),
+      actorUserId: input.actorUserId,
+      action: "user.sessions_revoked",
+      entityType: "user",
+      entityId: input.targetUserId,
+      before: { sessionCount: existingSessions.length },
+      after: { sessionCount: 0 },
+    });
+
+    return { userId: input.targetUserId, revokedCount: existingSessions.length };
   });
 }

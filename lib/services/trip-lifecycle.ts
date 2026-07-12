@@ -9,6 +9,8 @@ import { auditEvent } from "@/db/schema/platform";
 import { trip } from "@/db/schema/trips";
 import { hasPermission } from "@/lib/authorization";
 import { DomainError } from "@/lib/domain-error";
+import { withSerializableRetry } from "@/lib/transaction";
+import { auditMetadata } from "@/lib/audit";
 
 interface TripActionInput {
   tripId: string;
@@ -42,7 +44,7 @@ async function assertTripOperator(actorUserId: string): Promise<void> {
 export async function startTrip(input: TripActionInput) {
   await assertTripOperator(input.actorUserId);
 
-  return db.transaction(
+  return withSerializableRetry(() => db.transaction(
     async (tx) => {
       const [tripRecord] = await tx
         .select()
@@ -100,6 +102,7 @@ export async function startTrip(input: TripActionInput) {
       }
 
       await tx.insert(auditEvent).values({
+        ...auditMetadata(),
         actorUserId: input.actorUserId,
         action: "trip.started",
         entityType: "trip",
@@ -115,7 +118,7 @@ export async function startTrip(input: TripActionInput) {
       return updated;
     },
     { isolationLevel: "serializable", accessMode: "read write" },
-  );
+  ));
 }
 
 export async function completeTrip(input: CompleteTripInput) {
@@ -128,7 +131,7 @@ export async function completeTrip(input: CompleteTripInput) {
     );
   }
 
-  return db.transaction(
+  return withSerializableRetry(() => db.transaction(
     async (tx) => {
       const [tripRecord] = await tx
         .select()
@@ -202,6 +205,7 @@ export async function completeTrip(input: CompleteTripInput) {
         .where(eq(vehicle.id, vehicleRecord.id));
 
       await tx.insert(auditEvent).values({
+        ...auditMetadata(),
         actorUserId: input.actorUserId,
         action: "trip.completed",
         entityType: "trip",
@@ -221,7 +225,7 @@ export async function completeTrip(input: CompleteTripInput) {
       return updated;
     },
     { isolationLevel: "serializable", accessMode: "read write" },
-  );
+  ));
 }
 
 export async function cancelTrip(input: CancelTripInput) {
@@ -274,6 +278,7 @@ export async function cancelTrip(input: CancelTripInput) {
     }
 
     await tx.insert(auditEvent).values({
+      ...auditMetadata(),
       actorUserId: input.actorUserId,
       action: "trip.cancelled",
       entityType: "trip",

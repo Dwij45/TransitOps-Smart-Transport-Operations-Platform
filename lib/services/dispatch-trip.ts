@@ -9,6 +9,8 @@ import { driver, driverLicense, vehicle } from "@/db/schema/fleet";
 import { trip } from "@/db/schema/trips";
 import { hasPermission } from "@/lib/authorization";
 import { DomainError } from "@/lib/domain-error";
+import { withSerializableRetry } from "@/lib/transaction";
+import { auditMetadata } from "@/lib/audit";
 
 export interface DispatchTripInput {
   tripId: string;
@@ -28,7 +30,7 @@ export interface DispatchTripResult {
 export async function dispatchTrip(
   input: DispatchTripInput,
 ): Promise<DispatchTripResult> {
-  return db.transaction(
+  return withSerializableRetry(() => db.transaction(
     async (tx) => {
       const [actor] = await tx
         .select({ role: user.role })
@@ -203,6 +205,7 @@ export async function dispatchTrip(
       }
 
       await tx.insert(auditEvent).values({
+        ...auditMetadata(),
         actorUserId: input.actorUserId,
         action: "trip.dispatched",
         entityType: "trip",
@@ -222,5 +225,5 @@ export async function dispatchTrip(
       return updated as DispatchTripResult;
     },
     { isolationLevel: "serializable", accessMode: "read write" },
-  );
+  ));
 }

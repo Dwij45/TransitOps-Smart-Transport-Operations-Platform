@@ -15,6 +15,7 @@ import {
 import { auditEvent } from "@/db/schema/platform";
 import { hasPermission } from "@/lib/authorization";
 import { DomainError } from "@/lib/domain-error";
+import { auditMetadata } from "@/lib/audit";
 
 type UserRole = (typeof userRoleValues)[number];
 
@@ -107,6 +108,7 @@ export async function inviteStaffUser(input: InviteStaffUserInput) {
     });
 
     await tx.insert(auditEvent).values({
+      ...auditMetadata(),
       actorUserId: input.actorUserId,
       action: "user.invited",
       entityType: "user",
@@ -207,6 +209,7 @@ export async function acceptStaffInvitation(
     await tx.delete(verification).where(eq(verification.id, invitation.id));
 
     await tx.insert(auditEvent).values({
+      ...auditMetadata(),
       actorUserId: userId,
       action: "user.invitation_accepted",
       entityType: "user",
@@ -251,6 +254,7 @@ export async function unlockStaffUser(
       });
 
     await tx.insert(auditEvent).values({
+      ...auditMetadata(),
       actorUserId,
       action: "user.unlocked",
       entityType: "user",

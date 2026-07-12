@@ -10,6 +10,8 @@ import { auditEvent } from "@/db/schema/platform";
 import { trip } from "@/db/schema/trips";
 import { hasPermission } from "@/lib/authorization";
 import { DomainError } from "@/lib/domain-error";
+import { withSerializableRetry } from "@/lib/transaction";
+import { auditMetadata } from "@/lib/audit";
 
 export interface LogFuelInput {
   actorUserId: string;
@@ -70,7 +72,7 @@ export async function logFuel(input: LogFuelInput) {
     throw new DomainError("validation_failed", "Fuel type is required");
   }
 
-  return db.transaction(
+  return withSerializableRetry(() => db.transaction(
     async (tx) => {
       const [vehicleRecord] = await tx
         .select()
@@ -170,6 +172,7 @@ export async function logFuel(input: LogFuelInput) {
       }
 
       await tx.insert(auditEvent).values({
+        ...auditMetadata(),
         actorUserId: input.actorUserId,
         action: "fuel.logged",
         entityType: "expense",
@@ -189,5 +192,5 @@ export async function logFuel(input: LogFuelInput) {
       return { expense: postedExpense, fuelEntry: entry };
     },
     { isolationLevel: "serializable", accessMode: "read write" },
-  );
+  ));
 }

@@ -13,6 +13,7 @@ import { auditEvent } from "@/db/schema/platform";
 import { trip } from "@/db/schema/trips";
 import { hasPermission } from "@/lib/authorization";
 import { DomainError } from "@/lib/domain-error";
+import { auditMetadata } from "@/lib/audit";
 
 export interface CreateTripInput {
   actorUserId: string;
@@ -146,6 +147,7 @@ export async function createTrip(input: CreateTripInput) {
       .returning();
 
     await tx.insert(auditEvent).values({
+      ...auditMetadata(),
       actorUserId: input.actorUserId,
       action: "trip.created",
       entityType: "trip",
@@ -240,6 +242,7 @@ export async function createMaintenanceOrder(
       .returning();
 
     await tx.insert(auditEvent).values({
+      ...auditMetadata(),
       actorUserId: input.actorUserId,
       action: "maintenance.created",
       entityType: "maintenance_order",

@@ -14,6 +14,8 @@ import { auditEvent } from "@/db/schema/platform";
 import { trip } from "@/db/schema/trips";
 import { hasPermission } from "@/lib/authorization";
 import { DomainError } from "@/lib/domain-error";
+import { withSerializableRetry } from "@/lib/transaction";
+import { auditMetadata } from "@/lib/audit";
 
 interface MaintenanceActionInput {
   maintenanceOrderId: string;
@@ -46,7 +48,7 @@ async function assertMaintenanceManager(actorUserId: string): Promise<void> {
 export async function startMaintenance(input: MaintenanceActionInput) {
   await assertMaintenanceManager(input.actorUserId);
 
-  return db.transaction(
+  return withSerializableRetry(() => db.transaction(
     async (tx) => {
       const [order] = await tx
         .select()
@@ -129,6 +131,7 @@ export async function startMaintenance(input: MaintenanceActionInput) {
         .where(eq(vehicle.id, vehicleRecord.id));
 
       await tx.insert(auditEvent).values({
+        ...auditMetadata(),
         actorUserId: input.actorUserId,
         action: "maintenance.started",
         entityType: "maintenance_order",
@@ -144,13 +147,13 @@ export async function startMaintenance(input: MaintenanceActionInput) {
       return updated;
     },
     { isolationLevel: "serializable", accessMode: "read write" },
-  );
+  ));
 }
 
 export async function completeMaintenance(input: CompleteMaintenanceInput) {
   await assertMaintenanceManager(input.actorUserId);
 
-  return db.transaction(
+  return withSerializableRetry(() => db.transaction(
     async (tx) => {
       const [order] = await tx
         .select()
@@ -282,6 +285,7 @@ export async function completeMaintenance(input: CompleteMaintenanceInput) {
         .where(eq(vehicle.id, vehicleRecord.id));
 
       await tx.insert(auditEvent).values({
+        ...auditMetadata(),
         actorUserId: input.actorUserId,
         action: "maintenance.completed",
         entityType: "maintenance_order",
@@ -299,7 +303,7 @@ export async function completeMaintenance(input: CompleteMaintenanceInput) {
       return { order: updated, expense: postedExpense };
     },
     { isolationLevel: "serializable", accessMode: "read write" },
-  );
+  ));
 }
 
 export async function cancelMaintenance(input: CancelMaintenanceInput) {
@@ -389,6 +393,7 @@ export async function cancelMaintenance(input: CancelMaintenanceInput) {
     }
 
     await tx.insert(auditEvent).values({
+      ...auditMetadata(),
       actorUserId: input.actorUserId,
       action: "maintenance.cancelled",
       entityType: "maintenance_order",

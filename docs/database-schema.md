@@ -100,3 +100,8 @@ lookup values are archived, and immutable audit events record meaningful
 changes. Audit snapshots must exclude passwords, tokens, secrets, and raw file
 contents. Uploaded files live in object storage; `document` retains metadata and
 one validated owning record.
+
+PostgreSQL rejects updates and deletes against `audit_event`; corrections are
+new compensating events. Database ownership and application credentials should
+also be separated in production so the application role cannot disable this
+protection.

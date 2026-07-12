@@ -26,6 +26,13 @@ export const driverDutyState = pgEnum("driver_duty_state", [
   "suspended",
 ]);
 
+export const safetyEventSeverity = pgEnum("safety_event_severity", [
+  "low",
+  "medium",
+  "high",
+  "critical",
+]);
+
 export const vehicleType = pgTable(
   "vehicle_type",
   {
@@ -256,6 +263,7 @@ export const driverSafetyEvent = pgTable(
     eventTypeId: uuid("event_type_id")
       .notNull()
       .references(() => safetyEventType.id, { onDelete: "restrict" }),
+    severity: safetyEventSeverity("severity").notNull(),
     occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
     pointsApplied: numeric("points_applied", { precision: 6, scale: 2 }).notNull(),
     summary: text("summary").notNull(),

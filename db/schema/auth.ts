@@ -10,13 +10,15 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
-export const userRole = pgEnum("user_role", [
+export const userRoleValues = [
   "admin",
   "fleet_manager",
   "dispatcher",
   "safety_officer",
   "financial_analyst",
-]);
+] as const;
+
+export const userRole = pgEnum("user_role", userRoleValues);
 
 export const user = pgTable(
   "user",

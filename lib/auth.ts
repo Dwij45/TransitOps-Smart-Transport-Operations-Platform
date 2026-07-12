@@ -4,6 +4,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { betterAuth } from "better-auth/minimal";
 
 import { db, schema } from "@/db";
+import { userRoleValues } from "@/db/schema/auth";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -20,13 +21,7 @@ export const auth = betterAuth({
   user: {
     additionalFields: {
       role: {
-        type: [
-          "admin",
-          "fleet_manager",
-          "dispatcher",
-          "safety_officer",
-          "financial_analyst",
-        ],
+        type: [...userRoleValues],
         required: true,
         defaultValue: "dispatcher",
         input: false,

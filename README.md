@@ -29,8 +29,31 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-## Deploy on Vercel
+## Database Seeding & Administration
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+To bootstrap the application database with reference values, default settings, and a rich set of linked demonstration data, run the seeding script:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run db:seed
+```
+
+This script is fully idempotent and can be run repeatedly without duplicating records or causing database conflicts. It also automatically configures the application settings with a default depot ("Mumbai Central Depot").
+
+### Creating the First Administrator
+
+Since public signup is disabled for security, you must bootstrap the first administrator user from the CLI.
+
+To create the administrator interactively:
+
+```bash
+npx tsx scripts/create-admin.ts
+```
+
+Alternatively, you can pass command-line arguments directly:
+
+```bash
+npx tsx scripts/create-admin.ts --name "Admin User" --email "admin@transitops.com" --password "YourSecurePassword123"
+```
+
+Once created, you can use these credentials to log into the application dashboard.
+

@@ -1,15 +1,16 @@
 import "server-only";
 
-import { randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 
 import { hashPassword } from "better-auth/crypto";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, gt, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
   account,
   user,
   userRoleValues,
+  verification,
 } from "@/db/schema/auth";
 import { auditEvent } from "@/db/schema/platform";
 import { hasPermission } from "@/lib/authorization";
@@ -17,27 +18,41 @@ import { DomainError } from "@/lib/domain-error";
 
 type UserRole = (typeof userRoleValues)[number];
 
-export interface CreateStaffUserInput {
+export interface InviteStaffUserInput {
   actorUserId: string;
   name: string;
   email: string;
-  password: string;
   role: UserRole;
 }
 
-export async function createStaffUser(input: CreateStaffUserInput) {
+export interface AcceptStaffInvitationInput {
+  token: string;
+  password: string;
+}
+
+const invitationLifetimeMs = 24 * 60 * 60 * 1000;
+
+function hashInvitationToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+async function assertUserManager(actorUserId: string): Promise<void> {
   const [actor] = await db
     .select({ role: user.role })
     .from(user)
-    .where(eq(user.id, input.actorUserId))
+    .where(eq(user.id, actorUserId))
     .limit(1);
 
   if (!actor || !hasPermission(actor.role, "user:manage")) {
     throw new DomainError(
       "forbidden",
-      "The acting user cannot create staff users",
+      "The acting user cannot manage staff users",
     );
   }
+}
+
+export async function inviteStaffUser(input: InviteStaffUserInput) {
+  await assertUserManager(input.actorUserId);
 
   const name = input.name.trim();
   const email = input.email.trim().toLowerCase();
@@ -50,14 +65,9 @@ export async function createStaffUser(input: CreateStaffUserInput) {
     throw new DomainError("validation_failed", "A valid email is required");
   }
 
-  if (input.password.length < 8 || input.password.length > 128) {
-    throw new DomainError(
-      "validation_failed",
-      "Password must contain between 8 and 128 characters",
-    );
-  }
-
-  const passwordHash = await hashPassword(input.password);
+  const rawToken = randomBytes(32).toString("base64url");
+  const tokenHash = hashInvitationToken(rawToken);
+  const expiresAt = new Date(Date.now() + invitationLifetimeMs);
 
   return db.transaction(async (tx) => {
     const [existing] = await tx
@@ -89,6 +99,92 @@ export async function createStaffUser(input: CreateStaffUserInput) {
         createdAt: user.createdAt,
       });
 
+    await tx.insert(verification).values({
+      id: randomUUID(),
+      identifier: `staff-invitation:${userId}`,
+      value: tokenHash,
+      expiresAt,
+    });
+
+    await tx.insert(auditEvent).values({
+      actorUserId: input.actorUserId,
+      action: "user.invited",
+      entityType: "user",
+      entityId: userId,
+      after: {
+        email: created.email,
+        role: created.role,
+        invitationExpiresAt: expiresAt.toISOString(),
+      },
+    });
+
+    const baseUrl = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
+    return {
+      user: created,
+      invitationUrl: `${baseUrl}/accept-invitation?token=${encodeURIComponent(rawToken)}`,
+      expiresAt,
+    };
+  });
+}
+
+export async function acceptStaffInvitation(
+  input: AcceptStaffInvitationInput,
+) {
+  if (input.password.length < 8 || input.password.length > 128) {
+    throw new DomainError(
+      "validation_failed",
+      "Password must contain between 8 and 128 characters",
+    );
+  }
+
+  const tokenHash = hashInvitationToken(input.token);
+  const passwordHash = await hashPassword(input.password);
+
+  return db.transaction(async (tx) => {
+    const [invitation] = await tx
+      .select()
+      .from(verification)
+      .where(
+        and(
+          eq(verification.value, tokenHash),
+          gt(verification.expiresAt, new Date()),
+          sql`${verification.identifier} like 'staff-invitation:%'`,
+        ),
+      )
+      .for("update")
+      .limit(1);
+
+    if (!invitation) {
+      throw new DomainError(
+        "validation_failed",
+        "Invitation is invalid or expired",
+      );
+    }
+
+    const userId = invitation.identifier.slice("staff-invitation:".length);
+    const [invitedUser] = await tx
+      .select({ id: user.id, email: user.email, role: user.role })
+      .from(user)
+      .where(eq(user.id, userId))
+      .for("update")
+      .limit(1);
+
+    if (!invitedUser) {
+      throw new DomainError("not_found", "Invited staff user no longer exists");
+    }
+
+    const [existingCredential] = await tx
+      .select({ id: account.id })
+      .from(account)
+      .where(
+        and(eq(account.userId, userId), eq(account.providerId, "credential")),
+      )
+      .limit(1);
+
+    if (existingCredential) {
+      throw new DomainError("conflict", "Invitation has already been accepted");
+    }
+
     await tx.insert(account).values({
       id: randomUUID(),
       accountId: userId,
@@ -97,19 +193,28 @@ export async function createStaffUser(input: CreateStaffUserInput) {
       password: passwordHash,
     });
 
+    const [activated] = await tx
+      .update(user)
+      .set({ emailVerified: true })
+      .where(eq(user.id, userId))
+      .returning({
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        emailVerified: user.emailVerified,
+      });
+
+    await tx.delete(verification).where(eq(verification.id, invitation.id));
+
     await tx.insert(auditEvent).values({
-      actorUserId: input.actorUserId,
-      action: "user.created",
+      actorUserId: userId,
+      action: "user.invitation_accepted",
       entityType: "user",
       entityId: userId,
-      after: {
-        email: created.email,
-        role: created.role,
-        emailVerified: created.emailVerified,
-      },
+      after: { emailVerified: true, role: activated.role },
     });
 
-    return created;
+    return activated;
   });
 }
 
@@ -117,18 +222,7 @@ export async function unlockStaffUser(
   actorUserId: string,
   targetUserId: string,
 ) {
-  const [actor] = await db
-    .select({ role: user.role })
-    .from(user)
-    .where(eq(user.id, actorUserId))
-    .limit(1);
-
-  if (!actor || !hasPermission(actor.role, "user:manage")) {
-    throw new DomainError(
-      "forbidden",
-      "The acting user cannot unlock staff users",
-    );
-  }
+  await assertUserManager(actorUserId);
 
   return db.transaction(async (tx) => {
     const [target] = await tx

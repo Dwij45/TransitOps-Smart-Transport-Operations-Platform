@@ -21,10 +21,36 @@ export const auth = betterAuth({
     maxPasswordLength: 128,
     revokeSessionsOnPasswordReset: true,
     onPasswordReset: async ({ user: resetUser }) => {
-      await db
-        .update(user)
-        .set({ failedLoginAttempts: 0, lockedUntil: null })
-        .where(eq(user.id, resetUser.id));
+      await db.transaction(async (tx) => {
+        const [before] = await tx
+          .select({
+            failedLoginAttempts: user.failedLoginAttempts,
+            lockedUntil: user.lockedUntil,
+          })
+          .from(user)
+          .where(eq(user.id, resetUser.id))
+          .for("update")
+          .limit(1);
+
+        await tx
+          .update(user)
+          .set({ failedLoginAttempts: 0, lockedUntil: null })
+          .where(eq(user.id, resetUser.id));
+
+        if (before && (before.failedLoginAttempts > 0 || before.lockedUntil)) {
+          await tx.insert(auditEvent).values({
+            actorUserId: resetUser.id,
+            action: "auth.lockout_cleared_by_password_reset",
+            entityType: "user",
+            entityId: resetUser.id,
+            before: {
+              failedLoginAttempts: before.failedLoginAttempts,
+              lockedUntil: before.lockedUntil?.toISOString() ?? null,
+            },
+            after: { failedLoginAttempts: 0, lockedUntil: null },
+          });
+        }
+      });
     },
   },
   user: {
@@ -101,10 +127,36 @@ export const auth = betterAuth({
       const signedInUser = ctx.context.newSession?.user;
 
       if (signedInUser) {
-        await db
-          .update(user)
-          .set({ failedLoginAttempts: 0, lockedUntil: null })
-          .where(eq(user.id, signedInUser.id));
+        await db.transaction(async (tx) => {
+          const [before] = await tx
+            .select({
+              failedLoginAttempts: user.failedLoginAttempts,
+              lockedUntil: user.lockedUntil,
+            })
+            .from(user)
+            .where(eq(user.id, signedInUser.id))
+            .for("update")
+            .limit(1);
+
+          await tx
+            .update(user)
+            .set({ failedLoginAttempts: 0, lockedUntil: null })
+            .where(eq(user.id, signedInUser.id));
+
+          if (before && (before.failedLoginAttempts > 0 || before.lockedUntil)) {
+            await tx.insert(auditEvent).values({
+              actorUserId: signedInUser.id,
+              action: "auth.lockout_cleared_by_login",
+              entityType: "user",
+              entityId: signedInUser.id,
+              before: {
+                failedLoginAttempts: before.failedLoginAttempts,
+                lockedUntil: before.lockedUntil?.toISOString() ?? null,
+              },
+              after: { failedLoginAttempts: 0, lockedUntil: null },
+            });
+          }
+        });
         return;
       }
 

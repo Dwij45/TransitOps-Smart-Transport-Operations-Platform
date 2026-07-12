@@ -258,10 +258,25 @@ export async function completeMaintenance(input: CompleteMaintenanceInput) {
         })
         .returning();
 
+      const [otherActiveOrder] = await tx
+        .select({ id: maintenanceOrder.id })
+        .from(maintenanceOrder)
+        .where(
+          and(
+            ne(maintenanceOrder.id, order.id),
+            eq(maintenanceOrder.vehicleId, order.vehicleId),
+            eq(maintenanceOrder.status, "in_progress"),
+          ),
+        )
+        .for("update")
+        .limit(1);
+
+      const restoredLifecycle = otherActiveOrder ? "in_shop" : "active";
+
       await tx
         .update(vehicle)
         .set({
-          lifecycle: "active",
+          lifecycle: restoredLifecycle,
           currentOdometerKm: input.closingOdometerKm,
         })
         .where(eq(vehicle.id, vehicleRecord.id));
@@ -274,7 +289,7 @@ export async function completeMaintenance(input: CompleteMaintenanceInput) {
         before: { status: order.status, vehicleLifecycle: vehicleRecord.lifecycle },
         after: {
           status: updated.status,
-          vehicleLifecycle: "active",
+          vehicleLifecycle: restoredLifecycle,
           closingOdometerKm: updated.closingOdometerKm,
           expenseId: postedExpense.id,
           amountMinor: postedExpense.amountMinor.toString(),
@@ -348,6 +363,8 @@ export async function cancelMaintenance(input: CancelMaintenanceInput) {
       );
     }
 
+    let restoredLifecycle = vehicleRecord.lifecycle;
+
     if (order.status === "in_progress") {
       const [otherActiveOrder] = await tx
         .select({ id: maintenanceOrder.id })
@@ -363,6 +380,7 @@ export async function cancelMaintenance(input: CancelMaintenanceInput) {
         .limit(1);
 
       if (!otherActiveOrder) {
+        restoredLifecycle = "active";
         await tx
           .update(vehicle)
           .set({ lifecycle: "active" })
@@ -379,8 +397,7 @@ export async function cancelMaintenance(input: CancelMaintenanceInput) {
       after: {
         status: updated.status,
         cancellationReason: reason,
-        vehicleLifecycle:
-          order.status === "in_progress" ? "active" : vehicleRecord.lifecycle,
+        vehicleLifecycle: restoredLifecycle,
       },
     });
 

@@ -30,7 +30,7 @@ export default async function LandingPage() {
                 <Link href="/login" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
                   Sign In
                 </Link>
-                <Link href="/login" className="bg-foreground text-background hover:bg-foreground/90 rounded-full px-6 py-2 text-sm font-medium transition-colors">
+                <Link href="/signup" className="bg-foreground text-background hover:bg-foreground/90 rounded-full px-6 py-2 text-sm font-medium transition-colors">
                   Get Started
                 </Link>
               </>
@@ -70,7 +70,7 @@ export default async function LandingPage() {
               </Link>
             ) : (
               <>
-                <Link href="/login" className="inline-flex items-center justify-center font-medium h-14 px-8 text-base rounded-full bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg shadow-primary/20 transition-all hover:scale-105">
+                <Link href="/signup" className="inline-flex items-center justify-center font-medium h-14 px-8 text-base rounded-full bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-lg shadow-primary/20 transition-all hover:scale-105">
                   Start Your Free Trial
                 </Link>
                 <Link href="/login" className="inline-flex items-center justify-center font-medium h-14 px-8 text-base rounded-full bg-muted border border-border text-foreground hover:bg-muted/80 backdrop-blur-md transition-all">

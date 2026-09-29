@@ -67,6 +67,12 @@ export const appAreas: readonly AppArea[] = [
     roles: ["admin", "financial_analyst"],
   },
   {
+    href: "/settings",
+    label: "Settings",
+    summary: "Operator settings, classifications, and the role matrix.",
+    roles: ["admin"],
+  },
+  {
     href: "/staff",
     label: "Staff",
     summary: "Roles, invitations, and session control.",

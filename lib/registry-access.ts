@@ -1,0 +1,17 @@
+import type { UserRole } from "@/lib/authorization";
+
+export function canManageLocations(role: UserRole): boolean {
+  return role === "admin" || role === "fleet_manager";
+}
+
+export function canViewLocations(role: UserRole): boolean {
+  return canManageLocations(role) || role === "dispatcher";
+}
+
+export function canManageVehicles(role: UserRole): boolean {
+  return role === "admin" || role === "fleet_manager";
+}
+
+export function canReadDispatchPool(role: UserRole): boolean {
+  return canManageVehicles(role) || role === "dispatcher";
+}

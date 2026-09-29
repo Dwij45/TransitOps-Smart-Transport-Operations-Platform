@@ -1,6 +1,6 @@
 import "server-only";
 
-import { asc, eq, isNull, or } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 
 import { db } from "@/db";
 import { user } from "@/db/schema/auth";
@@ -15,6 +15,7 @@ import { appSettings, auditEvent } from "@/db/schema/platform";
 import { auditMetadata } from "@/lib/audit";
 import { hasPermission } from "@/lib/authorization";
 import { DomainError } from "@/lib/domain-error";
+import { listSelectableLocations } from "@/lib/services/locations";
 
 export const lookupKinds = [
   "vehicle_type",
@@ -168,20 +169,7 @@ export async function getSettingsWorkspace(actorUserId: string): Promise<Setting
     .where(eq(appSettings.id, 1))
     .limit(1);
 
-  const depots = await db
-    .select({
-      id: location.id,
-      name: location.name,
-      city: location.city,
-      archivedAt: location.archivedAt,
-    })
-    .from(location)
-    .where(
-      settings?.defaultDepotId
-        ? or(isNull(location.archivedAt), eq(location.id, settings.defaultDepotId))
-        : isNull(location.archivedAt),
-    )
-    .orderBy(asc(location.name));
+  const depots = await listSelectableLocations(settings?.defaultDepotId);
 
   const [vehicleRows, locationRows, maintenanceRows, safetyRows] = await Promise.all([
     listLookups("vehicle_type"),
@@ -199,8 +187,8 @@ export async function getSettingsWorkspace(actorUserId: string): Promise<Setting
     weightUnit: settings?.weightUnit ?? "kilogram",
     depots: depots.map((depot) => ({
       id: depot.id,
-      label: depot.archivedAt ? `${depot.name}, ${depot.city} (archived)` : `${depot.name}, ${depot.city}`,
-      archived: Boolean(depot.archivedAt),
+      label: depot.archived ? `${depot.name}, ${depot.city} (archived)` : `${depot.name}, ${depot.city}`,
+      archived: depot.archived,
     })),
     lookups: {
       vehicle_type: vehicleRows,

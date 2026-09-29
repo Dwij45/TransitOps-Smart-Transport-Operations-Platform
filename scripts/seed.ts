@@ -47,6 +47,7 @@ const TYPE_DEPOT = "5f8a29a0-bc6f-45b0-8f92-563b78292eb5";
 const TYPE_HUB = "1e9a9a3f-1d89-40b5-a35b-d36c1e5fe8e1";
 const TYPE_WAREHOUSE = "bc8a3641-789a-41bb-9275-c54d7efd89a9";
 const TYPE_CUSTOMER = "41328ae3-6bf2-4da4-874b-ef350c3decf6";
+const TYPE_OTHER = "7c4e8a21-6b3d-4f19-8a77-2d91c0e4b615";
 
 // Vehicle Types
 const VTYPE_CONTAINER = "aa3e6be2-44a5-4e78-9e6b-7d1ab312cd69";
@@ -138,6 +139,7 @@ async function main() {
           { id: TYPE_HUB, name: "Hub" },
           { id: TYPE_WAREHOUSE, name: "Warehouse" },
           { id: TYPE_CUSTOMER, name: "Customer" },
+          { id: TYPE_OTHER, name: "Other" },
         ])
         .onConflictDoNothing();
 

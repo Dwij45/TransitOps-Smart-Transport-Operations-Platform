@@ -26,3 +26,15 @@ const rolePermissions = {
 export function hasPermission(role: UserRole, permission: Permission): boolean {
   return (rolePermissions[role] as readonly Permission[]).includes(permission);
 }
+
+export const permissionLabels: Record<Permission, string> = {
+  "trip:dispatch": "Dispatch trips",
+  "trip:operate": "Operate trips",
+  "maintenance:manage": "Manage maintenance",
+  "expense:manage": "Manage expenses",
+  "user:manage": "Manage staff",
+};
+
+export function permissionsForRole(role: UserRole): readonly Permission[] {
+  return rolePermissions[role];
+}

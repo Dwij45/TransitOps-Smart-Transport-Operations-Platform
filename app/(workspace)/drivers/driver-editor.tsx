@@ -10,6 +10,7 @@ import { listLicenceDocuments } from "@/lib/services/documents";
 import { getDriver } from "@/lib/services/drivers";
 import { requireUser } from "@/lib/session";
 import { DriverForm } from "./driver-form";
+import { DriverSafety } from "./driver-safety";
 import { AddLicenceForm, LicenceActions, LicenceDocumentForm, RemoveLicenceDocumentButton } from "./licence-forms";
 
 function calendarDate(value: Date | null) {
@@ -105,6 +106,7 @@ export async function DriverEditorPage({ id }: { id?: string }) {
           <AddLicenceForm driverId={current.id} />
         </section>
       ) : null}
+      {current ? <DriverSafety driverId={current.id} /> : null}
     </div>
   );
 }

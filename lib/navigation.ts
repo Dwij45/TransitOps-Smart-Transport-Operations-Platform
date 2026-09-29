@@ -57,7 +57,7 @@ export const appAreas: readonly AppArea[] = [
   {
     href: "/maintenance",
     label: "Maintenance",
-    summary: "Service orders and shop status.",
+    summary: "Service orders, shop status, and history.",
     roles: ["admin", "fleet_manager"],
   },
   {

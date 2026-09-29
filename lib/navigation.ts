@@ -93,7 +93,7 @@ export const appAreas: readonly AppArea[] = [
   {
     href: "/audit",
     label: "Audit",
-    summary: "History of security and operational changes.",
+    summary: "Searchable history of security and operational changes.",
     roles: ["admin"],
   },
 ];

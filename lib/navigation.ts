@@ -63,7 +63,7 @@ export const appAreas: readonly AppArea[] = [
   {
     href: "/expenses",
     label: "Fuel and expenses",
-    summary: "Fuel entries and the operational expense ledger.",
+    summary: "Fuel, tolls, and the expense ledger.",
     roles: ["admin", "financial_analyst"],
   },
   {

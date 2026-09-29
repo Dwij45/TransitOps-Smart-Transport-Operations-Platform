@@ -16,7 +16,7 @@ import {
 import { isForeignKeyViolation } from "@/lib/db-error";
 import { DomainError } from "@/lib/domain-error";
 import { putObject, readObject, removeObject } from "@/lib/object-storage";
-import { canManageDrivers, canManageVehicles } from "@/lib/registry-access";
+import { canManageDrivers, canManageExpenses, canManageVehicles } from "@/lib/registry-access";
 import { withSerializableRetry } from "@/lib/transaction";
 
 const serializable = { isolationLevel: "serializable", accessMode: "read write" } as const;
@@ -234,6 +234,56 @@ export async function uploadMaintenanceDocument(actorUserId: string, input: { or
   return { id };
 }
 
+async function assertExpenseStaff(actorUserId: string) {
+  const [actor] = await db.select({ role: user.role }).from(user).where(eq(user.id, actorUserId)).limit(1);
+  const role = actor?.role as UserRole | undefined;
+  if (!role || !canManageExpenses(role)) throw new DomainError("forbidden", "The acting user cannot read receipts");
+}
+
+export async function uploadExpenseDocument(actorUserId: string, input: { expenseId: string; file: File }) {
+  await assertExpenseStaff(actorUserId);
+  const bytes = Buffer.from(await input.file.arrayBuffer());
+  if (bytes.length === 0 || bytes.length > MAX_DOCUMENT_BYTES) {
+    throw new DomainError("validation_failed", "File must be between 1 byte and 1 MB");
+  }
+  const detected = detectDocumentType(bytes);
+  if (!detected || detected !== input.file.type) {
+    throw new DomainError("validation_failed", "File content does not match an allowed type");
+  }
+  const id = crypto.randomUUID();
+  const filename = input.file.name.replace(/[^\w.\-]+/g, "_").slice(0, 80) || "receipt";
+  const storageKey = `expenses/${input.expenseId}/${id}/${filename}`;
+  await putObject(storageKey, bytes);
+  try {
+    await withSerializableRetry(() =>
+      db.transaction(async (tx) => {
+        await tx.insert(document).values({
+          id,
+          storageKey,
+          filename,
+          mimeType: detected,
+          byteSize: BigInt(bytes.length),
+          uploadedByUserId: actorUserId,
+          expenseId: input.expenseId,
+        });
+        await tx.insert(auditEvent).values({
+          ...auditMetadata(),
+          actorUserId,
+          action: "document.uploaded",
+          entityType: "document",
+          entityId: id,
+          after: { expenseId: input.expenseId, filename },
+        });
+      }, serializable),
+    );
+  } catch (error) {
+    await removeObject(storageKey).catch(() => undefined);
+    if (isForeignKeyViolation(error)) throw new DomainError("not_found", "Expense not found");
+    throw error;
+  }
+  return { id: input.expenseId };
+}
+
 async function assertDriverStaff(actorUserId: string) {
   const [actor] = await db
     .select({ role: user.role })
@@ -351,6 +401,7 @@ export async function readStaffDocument(actorUserId: string, documentId: string)
       vehicleId: document.vehicleId,
       driverLicenseId: document.driverLicenseId,
       maintenanceOrderId: document.maintenanceOrderId,
+      expenseId: document.expenseId,
     })
     .from(document)
     .where(eq(document.id, documentId))
@@ -359,6 +410,7 @@ export async function readStaffDocument(actorUserId: string, documentId: string)
   if (row?.vehicleId) await assertManage(actorUserId);
   else if (row?.driverLicenseId) await assertDriverStaff(actorUserId);
   else if (row?.maintenanceOrderId) await assertManage(actorUserId);
+  else if (row?.expenseId) await assertExpenseStaff(actorUserId);
   else throw new DomainError("not_found", "Document not found");
 
   return {

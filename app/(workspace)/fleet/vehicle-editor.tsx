@@ -11,6 +11,7 @@ import { requireUser } from "@/lib/session";
 import { minorToMajor } from "@/lib/vehicle-rules";
 import { isDispatchEligible, vehicleDisplayLabels, type VehicleDisplayStatus } from "@/lib/vehicle-status";
 import { VehicleForm } from "./vehicle-form";
+import { VehicleDocuments } from "./vehicle-documents";
 
 function calendarDate(value: Date | null) {
   if (!value) return "";
@@ -82,6 +83,7 @@ export async function VehicleEditorPage({ id }: { id?: string }) {
           }
         />
       )}
+      {current ? <VehicleDocuments vehicleId={current.id} /> : null}
     </div>
   );
 }

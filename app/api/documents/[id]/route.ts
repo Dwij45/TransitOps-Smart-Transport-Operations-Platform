@@ -1,5 +1,5 @@
 import { DomainError } from "@/lib/domain-error";
-import { readVehicleDocument } from "@/lib/services/documents";
+import { readStaffDocument } from "@/lib/services/documents";
 import { requireUser } from "@/lib/session";
 
 export async function GET(
@@ -10,7 +10,7 @@ export async function GET(
   const { id } = await context.params;
 
   try {
-    const file = await readVehicleDocument(user.id, id);
+    const file = await readStaffDocument(user.id, id);
     const filename = file.filename.replace(/["\r\n]/g, "");
     return new Response(new Uint8Array(file.body), {
       headers: {

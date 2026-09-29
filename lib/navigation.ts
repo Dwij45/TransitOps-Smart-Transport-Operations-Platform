@@ -45,7 +45,7 @@ export const appAreas: readonly AppArea[] = [
   {
     href: "/drivers",
     label: "Drivers",
-    summary: "Driver profiles, licences, and safety history.",
+    summary: "Driver profiles, licences, and duty status.",
     roles: ["admin", "safety_officer"],
   },
   {

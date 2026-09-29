@@ -15,3 +15,7 @@ export function canManageVehicles(role: UserRole): boolean {
 export function canReadDispatchPool(role: UserRole): boolean {
   return canManageVehicles(role) || role === "dispatcher";
 }
+
+export function canManageDrivers(role: UserRole): boolean {
+  return role === "admin" || role === "safety_officer";
+}

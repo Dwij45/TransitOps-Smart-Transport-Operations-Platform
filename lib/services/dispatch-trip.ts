@@ -7,6 +7,7 @@ import { user } from "@/db/schema/auth";
 import { auditEvent } from "@/db/schema/platform";
 import { driver, driverLicense, vehicle } from "@/db/schema/fleet";
 import { trip } from "@/db/schema/trips";
+import { driverDispatchBlock } from "@/lib/driver-rules";
 import { hasPermission } from "@/lib/authorization";
 import { DomainError } from "@/lib/domain-error";
 import { withSerializableRetry } from "@/lib/transaction";
@@ -109,34 +110,21 @@ export async function dispatchTrip(
         throw new DomainError("not_found", "Driver not found");
       }
 
-      if (driverRecord.archivedAt || driverRecord.dutyState !== "on_duty") {
-        throw new DomainError(
-          "validation_failed",
-          "Driver must be active and on duty to dispatch",
-          { dutyState: driverRecord.dutyState },
-        );
-      }
-
       const [license] = await tx
         .select()
         .from(driverLicense)
-        .where(
-          and(
-            eq(driverLicense.driverId, input.driverId),
-            eq(driverLicense.isPrimary, true),
-          ),
-        )
+        .where(and(eq(driverLicense.driverId, input.driverId), eq(driverLicense.isPrimary, true)))
         .for("update")
         .limit(1);
 
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      if (!license || !license.verifiedAt || license.expiresOn < today) {
-        throw new DomainError(
-          "validation_failed",
-          "Driver requires a verified, unexpired primary licence",
-        );
+      const block = driverDispatchBlock({
+        archived: Boolean(driverRecord.archivedAt),
+        dutyState: driverRecord.dutyState,
+        licence: license ? { verifiedAt: license.verifiedAt, expiresOn: license.expiresOn } : null,
+        today: new Date(),
+      });
+      if (block) {
+        throw new DomainError("validation_failed", block, { dutyState: driverRecord.dutyState });
       }
 
       const [vehicleConflict] = await tx

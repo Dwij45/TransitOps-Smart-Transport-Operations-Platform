@@ -27,7 +27,7 @@ export const appAreas: readonly AppArea[] = [
   {
     href: "/dashboard",
     label: "Dashboard",
-    summary: "The home for your role.",
+    summary: "Fleet, trips, drivers, and alerts for your role.",
     roles: allRoles,
   },
   {

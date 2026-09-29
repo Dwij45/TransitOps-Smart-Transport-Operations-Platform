@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
 
-export function SignOutButton() {
+export function SignOutButton({ className }: { className?: string }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
@@ -21,7 +21,7 @@ export function SignOutButton() {
   };
 
   return (
-    <Button type="button" variant="outline" disabled={loading} onClick={signOut}>
+    <Button type="button" variant="outline" className={className} disabled={loading} onClick={signOut}>
       {loading ? "Signing out..." : "Sign out"}
     </Button>
   );

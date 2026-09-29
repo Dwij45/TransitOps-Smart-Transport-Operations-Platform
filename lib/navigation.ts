@@ -69,7 +69,7 @@ export const appAreas: readonly AppArea[] = [
   {
     href: "/reports",
     label: "Reports",
-    summary: "Utilization, cost, and revenue views.",
+    summary: "Efficiency, cost, revenue, and ROI.",
     roles: ["admin", "financial_analyst"],
   },
   {

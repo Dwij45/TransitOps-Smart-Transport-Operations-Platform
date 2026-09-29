@@ -1,6 +1,6 @@
 import type { userRoleValues } from "@/db/schema/auth";
 
-type UserRole = (typeof userRoleValues)[number];
+export type UserRole = (typeof userRoleValues)[number];
 
 export type Permission =
   | "trip:dispatch"

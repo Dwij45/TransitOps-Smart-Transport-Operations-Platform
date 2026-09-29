@@ -73,6 +73,12 @@ export const appAreas: readonly AppArea[] = [
     roles: ["admin", "financial_analyst"],
   },
   {
+    href: "/exports",
+    label: "Exports",
+    summary: "CSV downloads for records this role can view.",
+    roles: allRoles,
+  },
+  {
     href: "/settings",
     label: "Settings",
     summary: "Operator settings, classifications, and the role matrix.",

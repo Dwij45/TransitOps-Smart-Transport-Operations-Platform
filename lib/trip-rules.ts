@@ -91,6 +91,37 @@ function errorText(error: unknown): string {
   return `${parts} ${errorText(record.cause)}`;
 }
 
+export const liveAssignmentStatuses = ["dispatched", "in_progress"] as const;
+
+export function isLiveAssignment(status: TripStatus): boolean {
+  return status === "dispatched" || status === "in_progress";
+}
+
+export function tripOperations(status: TripStatus): { start: boolean; complete: boolean; cancel: boolean } {
+  return {
+    start: status === "dispatched",
+    complete: status === "in_progress",
+    cancel: status === "draft" || status === "dispatched",
+  };
+}
+
+function hundredths(value: string): bigint | null {
+  if (!/^\d+(\.\d{1,2})?$/.test(value)) return null;
+  const [whole, fraction = ""] = value.split(".");
+  return BigInt(whole) * BigInt(100) + BigInt(fraction.padEnd(2, "0").slice(0, 2));
+}
+
+export function endOdometerProblem(end: string, tripStart: string, vehicle: string): string | null {
+  const endValue = hundredths(end);
+  const startValue = hundredths(tripStart);
+  const vehicleValue = hundredths(vehicle);
+  if (endValue === null || startValue === null || vehicleValue === null) return "Enter an end odometer";
+  if (endValue < startValue || endValue < vehicleValue) {
+    return "End odometer cannot precede the trip or vehicle odometer";
+  }
+  return null;
+}
+
 export function assignmentConflictMessage(error: unknown): string | null {
   const text = errorText(error);
   if (text.includes("trip_active_vehicle_unique")) return "That vehicle already has a live trip.";

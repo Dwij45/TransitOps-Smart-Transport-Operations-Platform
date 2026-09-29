@@ -7,7 +7,8 @@ import { z } from "zod";
 import type { ActionState } from "@/lib/action-state";
 import { executeProtectedFormOperation, type OperationResult } from "@/lib/server-operation";
 import { createDraftTrip, dispatchDraftTrip, updateDraftTrip, type TripDraftInput } from "@/lib/services/trip-planning";
-import { draftTripProblem, quotedRevenueProblem } from "@/lib/trip-rules";
+import { cancelTrip, completeTrip, startTrip } from "@/lib/services/trip-lifecycle";
+import { draftTripProblem, endOdometerProblem, quotedRevenueProblem } from "@/lib/trip-rules";
 import { toMinorUnits } from "@/lib/vehicle-rules";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -129,4 +130,72 @@ export async function dispatchTripAction(_state: ActionState, formData: FormData
   revalidatePath(`/trips/${result.data.id}`);
   revalidatePath("/fleet");
   return { ok: true, message: "Trip dispatched." };
+}
+
+const tripIdSchema = z.object({
+  id: z.string().regex(uuidPattern, "Choose a trip"),
+});
+
+const completeSchema = z
+  .object({
+    id: z.string().regex(uuidPattern, "Choose a trip"),
+    endOdometerKm: z.string().trim(),
+    startOdometerKm: z.string().trim(),
+    vehicleOdometerKm: z.string().trim(),
+    finalRevenue: z.string().trim(),
+  })
+  .superRefine((value, context) => {
+    const odometer = endOdometerProblem(value.endOdometerKm, value.startOdometerKm, value.vehicleOdometerKm);
+    if (odometer) context.addIssue({ code: "custom", path: ["endOdometerKm"], message: odometer });
+    const revenue = quotedRevenueProblem(value.finalRevenue);
+    if (revenue || !value.finalRevenue) {
+      context.addIssue({ code: "custom", path: ["finalRevenue"], message: revenue ?? "Enter the final revenue" });
+    }
+  })
+  .transform((value) => ({
+    id: value.id,
+    endOdometerKm: value.endOdometerKm,
+    finalRevenueMinor: toMinorUnits(value.finalRevenue) ?? BigInt(0),
+  }));
+
+const cancelSchema = z.object({
+  id: z.string().regex(uuidPattern, "Choose a trip"),
+  reason: z.string().trim().min(1, "Enter a cancellation reason").max(500),
+});
+
+export async function startTripAction(_state: ActionState, formData: FormData): Promise<ActionState> {
+  const result = await executeProtectedFormOperation(formData, tripIdSchema, (actor, input) =>
+    startTrip({ tripId: input.id, actorUserId: actor.userId }),
+  );
+  if (!result.ok) return failure(result);
+  revalidatePath("/trips");
+  revalidatePath(`/trips/${result.data.id}`);
+  revalidatePath("/fleet");
+  return { ok: true, message: "Trip started." };
+}
+
+export async function completeTripAction(_state: ActionState, formData: FormData): Promise<ActionState> {
+  const result = await executeProtectedFormOperation(formData, completeSchema, (actor, input) =>
+    completeTrip({
+      tripId: input.id,
+      actorUserId: actor.userId,
+      endOdometerKm: input.endOdometerKm,
+      finalRevenueMinor: input.finalRevenueMinor,
+    }),
+  );
+  if (!result.ok) return failure(result);
+  revalidatePath("/trips");
+  revalidatePath(`/trips/${result.data.id}`);
+  revalidatePath("/fleet");
+  return { ok: true, message: "Trip completed." };
+}
+
+export async function cancelTripAction(_state: ActionState, formData: FormData): Promise<ActionState> {
+  const result = await executeProtectedFormOperation(formData, cancelSchema, (actor, input) =>
+    cancelTrip({ tripId: input.id, actorUserId: actor.userId, reason: input.reason }),
+  );
+  if (!result.ok) return failure(result);
+  revalidatePath("/trips");
+  revalidatePath("/fleet");
+  return { ok: true, message: "Trip cancelled." };
 }

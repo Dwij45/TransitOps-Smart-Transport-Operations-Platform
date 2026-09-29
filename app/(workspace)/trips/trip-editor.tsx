@@ -13,7 +13,9 @@ import {
 } from "@/lib/services/trip-planning";
 import { requireUser } from "@/lib/session";
 import { minorToMajor } from "@/lib/vehicle-rules";
+import { tripOperations } from "@/lib/trip-rules";
 import { TripForm } from "./trip-form";
+import { TripOperations } from "./trip-operations";
 
 function dateTimeLocal(value: Date | null): string {
   if (!value) return "";
@@ -43,6 +45,7 @@ export async function TripEditorPage({ id }: { id?: string }) {
     listAssignableDrivers(current?.driverId),
   ]);
   const editable = !current || current.status === "draft";
+  const operations = current ? tripOperations(current.status) : null;
 
   return (
     <div className="mx-auto grid max-w-3xl gap-8">
@@ -103,7 +106,40 @@ export async function TripEditorPage({ id }: { id?: string }) {
             <dt className="text-muted-foreground">Distance</dt>
             <dd>{current.plannedDistanceKm} km</dd>
           </div>
+          {current.actualStartAt ? (
+            <div>
+              <dt className="text-muted-foreground">Started</dt>
+              <dd>
+                {current.actualStartAt.toLocaleString()} at {current.startOdometerKm} km
+              </dd>
+            </div>
+          ) : null}
+          {current.actualEndAt ? (
+            <div>
+              <dt className="text-muted-foreground">Completed</dt>
+              <dd>
+                {current.actualEndAt.toLocaleString()} at {current.endOdometerKm} km
+                {current.finalRevenueMinor !== null ? `, ${current.currency} ${minorToMajor(current.finalRevenueMinor)}` : ""}
+              </dd>
+            </div>
+          ) : null}
+          {current.cancellationReason ? (
+            <div>
+              <dt className="text-muted-foreground">Cancellation</dt>
+              <dd>{current.cancellationReason}</dd>
+            </div>
+          ) : null}
         </dl>
+      ) : null}
+      {current && operations && (operations.start || operations.complete || operations.cancel) ? (
+        <TripOperations
+          tripId={current.id}
+          start={operations.start}
+          complete={operations.complete}
+          cancel={operations.cancel}
+          startOdometerKm={current.startOdometerKm ?? "0"}
+          vehicleOdometerKm={current.vehicleOdometerKm ?? current.startOdometerKm ?? "0"}
+        />
       ) : null}
       <Link href="/trips" className="text-sm underline-offset-4 hover:underline">
         Back to trips

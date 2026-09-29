@@ -18,7 +18,9 @@ import {
   assignmentConflictMessage,
   draftTripProblem,
   driverAssignmentBlock,
+  liveAssignmentStatuses,
   tripStatusLabels,
+  tripStatuses,
   vehicleAssignmentBlock,
   type TripStatus,
 } from "@/lib/trip-rules";
@@ -71,6 +73,13 @@ export interface TripDetail extends TripDraftInput {
   destinationName: string;
   vehicleLabel: string | null;
   driverLabel: string | null;
+  actualStartAt: Date | null;
+  actualEndAt: Date | null;
+  startOdometerKm: string | null;
+  endOdometerKm: string | null;
+  finalRevenueMinor: bigint | null;
+  cancellationReason: string | null;
+  vehicleOdometerKm: string | null;
 }
 
 async function assertPlanner(actorUserId: string) {
@@ -83,7 +92,7 @@ async function assertPlanner(actorUserId: string) {
 function liveTrip(column: typeof trip.vehicleId | typeof trip.driverId, id: string, tripId?: string) {
   return and(
     eq(column, id),
-    inArray(trip.status, ["dispatched", "in_progress"]),
+    inArray(trip.status, [...liveAssignmentStatuses]),
     tripId ? ne(trip.id, tripId) : undefined,
   );
 }
@@ -227,6 +236,45 @@ export async function searchTrips(
   };
 }
 
+export async function listTripBoard(
+  actorUserId: string,
+  q: string,
+): Promise<Record<TripStatus, TripListRow[]>> {
+  await assertPlanner(actorUserId);
+  const term = q.trim();
+  const pattern = term ? `%${term.replace(/[%_\\]/g, "")}%` : "";
+  const groups = await Promise.all(
+    tripStatuses.map(async (status) => {
+      const rows = await db
+        .select({
+          id: trip.id,
+          code: trip.code,
+          status: trip.status,
+          customerName: trip.customerName,
+          scheduledStartAt: trip.scheduledStartAt,
+          originName: origin.name,
+          destinationName: destination.name,
+        })
+        .from(trip)
+        .innerJoin(origin, eq(trip.originLocationId, origin.id))
+        .innerJoin(destination, eq(trip.destinationLocationId, destination.id))
+        .where(
+          and(
+            eq(trip.status, status),
+            term ? or(ilike(trip.code, pattern), ilike(trip.customerName, pattern)) : undefined,
+          ),
+        )
+        .orderBy(desc(trip.scheduledStartAt))
+        .limit(pageSize);
+      return [
+        status,
+        rows.map((row) => ({ ...row, statusLabel: tripStatusLabels[row.status] })),
+      ] as const;
+    }),
+  );
+  return Object.fromEntries(groups) as Record<TripStatus, TripListRow[]>;
+}
+
 export async function getTrip(actorUserId: string, id: string): Promise<TripDetail | null> {
   await assertPlanner(actorUserId);
   const [row] = await db
@@ -247,10 +295,17 @@ export async function getTrip(actorUserId: string, id: string): Promise<TripDeta
       notes: trip.notes,
       vehicleId: trip.vehicleId,
       driverId: trip.driverId,
+      actualStartAt: trip.actualStartAt,
+      actualEndAt: trip.actualEndAt,
+      startOdometerKm: trip.startOdometerKm,
+      endOdometerKm: trip.endOdometerKm,
+      finalRevenueMinor: trip.finalRevenueMinor,
+      cancellationReason: trip.cancellationReason,
       originName: origin.name,
       destinationName: destination.name,
       vehicleRegistration: vehicle.registrationNumber,
       vehicleName: vehicle.name,
+      vehicleOdometerKm: vehicle.currentOdometerKm,
       driverName: driver.name,
       driverCode: driver.employeeCode,
     })
@@ -285,6 +340,13 @@ export async function getTrip(actorUserId: string, id: string): Promise<TripDeta
     driverId: row.driverId,
     vehicleLabel: row.vehicleRegistration ? `${row.vehicleRegistration} · ${row.vehicleName}` : null,
     driverLabel: row.driverName ? `${row.driverName} · ${row.driverCode}` : null,
+    actualStartAt: row.actualStartAt,
+    actualEndAt: row.actualEndAt,
+    startOdometerKm: row.startOdometerKm,
+    endOdometerKm: row.endOdometerKm,
+    finalRevenueMinor: row.finalRevenueMinor,
+    cancellationReason: row.cancellationReason,
+    vehicleOdometerKm: row.vehicleOdometerKm,
   };
 }
 
@@ -305,7 +367,7 @@ export async function listAssignableVehicles(cargoWeightKg: string, includeId?: 
   const live = await db
     .select({ vehicleId: trip.vehicleId })
     .from(trip)
-    .where(and(inArray(trip.status, ["dispatched", "in_progress"]), isNotNull(trip.vehicleId)));
+    .where(and(inArray(trip.status, [...liveAssignmentStatuses]), isNotNull(trip.vehicleId)));
   const liveIds = new Set(live.map((row) => row.vehicleId).filter((id): id is string => Boolean(id)));
   const rows = await db
     .select({
@@ -340,7 +402,7 @@ export async function listAssignableDrivers(includeId?: string | null): Promise<
   const live = await db
     .select({ driverId: trip.driverId })
     .from(trip)
-    .where(and(inArray(trip.status, ["dispatched", "in_progress"]), isNotNull(trip.driverId)));
+    .where(and(inArray(trip.status, [...liveAssignmentStatuses]), isNotNull(trip.driverId)));
   const liveIds = new Set(live.map((row) => row.driverId).filter((id): id is string => Boolean(id)));
   const rows = await db
     .select({

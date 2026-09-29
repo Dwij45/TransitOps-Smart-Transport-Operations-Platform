@@ -23,3 +23,7 @@ export function canManageDrivers(role: UserRole): boolean {
 export function canPlanTrips(role: UserRole): boolean {
   return role === "admin" || role === "dispatcher";
 }
+
+export function canOperateTrips(role: UserRole): boolean {
+  return role === "admin" || role === "dispatcher";
+}

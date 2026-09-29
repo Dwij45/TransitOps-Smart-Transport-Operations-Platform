@@ -51,7 +51,7 @@ export const appAreas: readonly AppArea[] = [
   {
     href: "/trips",
     label: "Trips",
-    summary: "Draft trips, assignment rules, and dispatch.",
+    summary: "Draft trips, dispatch, and live operations.",
     roles: ["admin", "dispatcher"],
   },
   {
